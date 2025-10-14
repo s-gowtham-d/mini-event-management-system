@@ -1,0 +1,41 @@
+FROM node:20-alpine AS base
+
+FROM base AS deps
+WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
+COPY apps/web/package.json apps/web/package-lock.json* ./
+RUN npm install
+
+# 💡 Copy only app content directly into WORKDIR (/app)
+COPY apps/web/ .
+
+RUN npm run build
+
+FROM base AS runner
+WORKDIR /app
+
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+# 👇 public is now in /app/public from above COPY
+COPY --from=deps /app/public ./public
+
+# ✅ .next now exists directly under /app/.next
+RUN mkdir .next
+RUN chown -R nextjs:nodejs .next
+COPY --from=deps --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=deps --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
+
+EXPOSE 3000
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+CMD ["node", "server.js"]
