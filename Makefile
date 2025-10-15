@@ -20,6 +20,7 @@ help:
 backend:
 	@echo "=== Setting up Laravel API ==="
 	cd api && composer install
+	cd api && php artisan migrate
 	cd api && php artisan key:generate
 	@echo "Starting Laravel server at http://localhost:8000"
 	cd api && php artisan serve --host=0.0.0.0 --port=8000
@@ -33,5 +34,6 @@ frontend:
 clean:
 	@echo "Cleaning dependencies..."
 	rm -rf api/vendor
+	rm -rf api/mini-management.sqlite
 	rm -rf web/node_modules
 	@echo "Done."
