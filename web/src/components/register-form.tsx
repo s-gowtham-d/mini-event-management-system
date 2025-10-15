@@ -26,6 +26,7 @@ const registerSchema = z.object({
 })
 
 type RegisterFormValues = z.infer<typeof registerSchema>
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
 
 export function RegisterForm({
   className,
@@ -54,31 +55,68 @@ export function RegisterForm({
 
   // Register mutation with TanStack Query
   const registerMutation = useMutation({
-    mutationFn: async (userData: RegisterFormValues) => {
-      // Simulate API call with a delay for animation
-      await new Promise(resolve => setTimeout(resolve, 1000))
+    // mutationFn: async (userData: RegisterFormValues) => {
+    //   const response = await fetch('http://localhost:8000/api/register', {
+    //     method: 'POST',
+    //     headers: {
+    //       'Content-Type': 'application/json',
+    //     },
+    //     body: JSON.stringify({
+    //       first_name: userData.firstName,
+    //       last_name: userData.lastName,
+    //       email: userData.email,
+    //       password: userData.password,
+    //       confirm_password: userData.confirmPassword,
+    //     }),
+    //   })
 
-      // Mock response - replace with actual API call
-      if (userData.email === "exists@example.com") {
-        throw new Error("email already exists")
+    //   const data = await response.json()
+
+    //   if (!response.ok) {
+    //     throw new Error(data.message || 'Registration failed')
+    //   }
+
+    //   return data
+    // },
+    mutationFn: async (data: any) => {
+      const response = await fetch(`${API_BASE_URL}/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          first_name: data.firstName,
+          last_name: data.lastName,
+          email: data.email,
+          password: data.password,
+          password_confirmation: data.password, // ← Make sure this is here!
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Registration failed');
       }
 
-      return { user: { id: "1", name: userData.firstName, email: userData.email }, token: "dummy-token" }
+      return response.json();
     },
-    onSuccess: (data) => {
-      // login(data.user, data.token)
+    onSuccess: (data: any) => {
+      localStorage.setItem("email", data.user.email);
+      console.log(data);
+      // If your API returns OTP or token
       router.push('/verify-otp')
     },
     onError: (error: Error) => {
-      // Handle API errors
       if (error.message.includes('email already exists')) {
         setError('email', { message: 'This email is already registered' })
         setFocus('email')
       } else {
         setError('root', { message: error.message || 'Registration failed' })
       }
-    }
+    },
   })
+
 
   const onSubmit = (data: RegisterFormValues) => {
     registerMutation.mutate(data)

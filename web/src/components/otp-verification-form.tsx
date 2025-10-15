@@ -26,6 +26,7 @@ import { useAuthStore } from "@/store/authStore"
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils"
+import axios from "axios"
 
 // Schema that only validates on submit
 const FormSchema = z.object({
@@ -34,6 +35,9 @@ const FormSchema = z.object({
     .regex(/^\d*$/, "Only numbers are allowed")
     .length(6, "Your verification code must be 6 digits."),
 })
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
+
 
 export function OTPVerificationForm() {
   const router = useRouter()
@@ -77,49 +81,62 @@ export function OTPVerificationForm() {
   // Verify OTP mutation
   const verifyMutation = useMutation({
     mutationFn: async (data: z.infer<typeof FormSchema>) => {
-      // Simulate API call with a delay
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      try {
+        const response = await axios.post(`${API_BASE_URL}/verify-otp`, {
+          email: localStorage.getItem("email"),
+          otp: data.pin,
+        });
 
-      // Check against dummy OTP
-      if (data.pin !== "123456") {
-        throw new Error("Invalid verification code")
+        return response.data;
+      } catch (error: any) {
+        if (error.response) {
+          // Server responded with a status outside of 2xx
+          throw new Error(error.response.data.message || "Verification failed");
+        } else if (error.request) {
+          // No response received
+          throw new Error("No response from server");
+        } else {
+          // Something else happened
+          throw new Error(error.message);
+        }
       }
-
-      return { user: { id: "1", name: "User" }, token: "dummy-token" }
     },
-    onSuccess: (data) => {
-      setIsSuccess(true)
 
+    onSuccess: (data) => {
       toast({
         title: "Verification successful",
         description: "Your account has been verified.",
-      })
+      });
 
-      // Delay redirect to show success state
       setTimeout(() => {
-        // Log the user in and redirect
+        // Optional: store user/token in your app context or localStorage
         // login(data.user, data.token)
-        // Simulate login
         toast({
           title: "Logged in",
-        })
+        });
 
-        router.push('/dashboard')
-      }, 1500)
+        router.push("/events");
+      }, 1500);
     },
+
     onError: (error: Error) => {
-      setIsInvalid(true)
+      setIsInvalid(true);
 
-      if (error.message.includes('expired')) {
-        form.setError('pin', { message: 'This code has expired. Please request a new one.' })
-      } else if (error.message.includes('invalid')) {
-        form.setError('pin', { message: 'Invalid verification code. Please try again.' })
+      if (error.message.toLowerCase().includes("expired")) {
+        form.setError("pin", {
+          message: "This code has expired. Please request a new one.",
+        });
+      } else if (error.message.toLowerCase().includes("invalid")) {
+        form.setError("pin", {
+          message: "Invalid verification code. Please try again.",
+        });
       } else {
-        form.setError('root', { message: error.message || 'Verification failed' })
+        form.setError("root", {
+          message: error.message || "Verification failed",
+        });
       }
-    }
-  })
-
+    },
+  });
   // Resend OTP mutation
   const resendMutation = useMutation({
     mutationFn: async () => {

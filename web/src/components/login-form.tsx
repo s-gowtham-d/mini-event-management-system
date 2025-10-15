@@ -47,36 +47,49 @@ export function LoginForm({
   // Login mutation with TanStack Query
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginFormValues) => {
-      // Replace with your actual API call
-      // Simulate API call with a delay for animation
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(credentials),
+      });
 
-      // Mock response - replace with actual API call
-      if (credentials.email === "error@example.com") {
-        throw new Error("Invalid email or password")
+      // If Laravel returns HTML, it's usually a CORS or route issue
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        const text = await res.text();
+        console.error("Unexpected response:", text);
+        throw new Error("Invalid response from server (check CORS or route)");
       }
 
-      return { user: { id: "1", name: "User", email: credentials.email }, token: "dummy-token" }
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Login failed");
+      }
+
+      return res.json();
     },
     onSuccess: (data) => {
-      login(data.user, data.token)
-      router.push('/dashboard')
+      // Assuming Laravel returns { user: {...}, token: "..." }
+      login(data.user, data.token);
+      router.push("/events");
     },
     onError: (error: Error) => {
       // Handle API errors
-      if (error.message.includes('credentials')) {
-        setError('root', { message: 'Invalid email or password' })
-      } else if (error.message.includes('email')) {
-        setError('email', { message: 'Email not found' })
-        setFocus('email')
-      } else if (error.message.includes('password')) {
-        setError('password', { message: 'Incorrect password' })
-        setFocus('password')
+      if (error.message.toLowerCase().includes("email")) {
+        setError("email", { message: "Email not found" });
+        setFocus("email");
+      } else if (error.message.toLowerCase().includes("password")) {
+        setError("password", { message: "Incorrect password" });
+        setFocus("password");
       } else {
-        setError('root', { message: error.message || 'An error occurred' })
+        setError("root", { message: error.message || "An error occurred" });
       }
-    }
-  })
+    },
+  });
+
 
   const onSubmit = (data: LoginFormValues) => {
     loginMutation.mutate(data)
